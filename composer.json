@@ -1,0 +1,13 @@
+{
+    "name": "sanderbaas/calert",
+    "description": "Send emails when an event is added to a calendar and send weekly reports.",
+    "require": {
+        "sabre/vobject": "~4.1"
+    },
+    "authors": [
+        {
+            "name": "Sander Baas",
+            "email": "sander@implode.nl"
+        }
+    ]
+}
