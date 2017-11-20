@@ -130,7 +130,6 @@ if ($locale) { setlocale(LC_TIME, $locale); }
 // either ctag or week or day or start and end shoud be passed
 
 function getCalendarCtag($url, $auth=false, $username=false, $password=false){
-  $calUrl = $url;
   $headers = array();
 
   if ($auth && $auth == 'basic' && $username && $password) {
@@ -147,24 +146,47 @@ function getCalendarCtag($url, $auth=false, $username=false, $password=false){
         'content' => '<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:displayname /><cs:getctag /></d:prop></d:propfind>'
     )
   ));
-$xmlData = file_get_contents($calUrl,false,$context);
-$xml=simplexml_load_string($xmlData);
-$doc = false;
-$cs = false;
-$ctag = false;
 
-if ($xml!==false && $xml->children('d',true)) {
-  $doc = $xml->children('d',true);
+  $doc = false;
+  $cs = false;
+  $ctag = false;
+  $xml = false;
+
+  if (isHostOnline($url)) {
+    $xmlData = file_get_contents($url,false,$context);
+    $xml=simplexml_load_string($xmlData);
+  }
+
+  if ($xml!==false && $xml->children('d',true)) {
+    $doc = $xml->children('d',true);
+  }
+
+  if ($doc && $doc->response && $doc->response->propstat && $doc->response->propstat->prop && $doc->response->propstat->prop->children('cs',true)) {
+    $cs = $doc->response->propstat->prop->children('cs',true);
+  }
+
+  if ($cs!==false && $cs->getctag) {
+    $ctag = $cs->getctag;
+  }
+
+  return $ctag;
 }
 
-if ($doc && $doc->response && $doc->response->propstat && $doc->response->propstat->prop && $doc->response->propstat->prop->children('cs',true)) {
-  $cs = $doc->response->propstat->prop->children('cs',true);
-}
+function isHostOnline($location) {
+  $port = 80;
+  if (substr($location,0,8)=='https://') { $port = 443; }
 
-if ($cs!==false && $cs->getctag) {
-  $ctag = $cs->getctag;
-}
-return $ctag;
+  $_location = str_replace(array('https://','http://'),'', $location);
+  $parts = explode('/', $_location);
+  $host = $parts[0];
+
+  $connected = @fsockopen($host, $port);
+
+  if ($connected === false) { return false; }
+
+  fclose($connected);
+
+  return true;
 }
 
 function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=false) {
@@ -193,9 +215,15 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
     )
   ));
 
-  $xmlData = file_get_contents($url,false,$context);
-  $xml=simplexml_load_string($xmlData);
+  $xml = false;
   $doc = false;
+
+  if (isHostOnline($url)) {
+    $xmlData = file_get_contents($url,false,$context);
+    $xml=simplexml_load_string($xmlData);
+  }
+
+  if (!$xml) { return false; }
 
   $urls = array();
 
@@ -215,8 +243,10 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
   '<c:calendar-data />' .
   '</d:prop>';
 
-  foreach ($urls as $eventUrl) {
-    $report_data2 .= '<d:href>' . $eventUrl . '</d:href>';
+  if (!empty($urls)) {
+    foreach ($urls as $eventUrl) {
+      $report_data2 .= '<d:href>' . $eventUrl . '</d:href>';
+    }
   }
   $report_data2 .= '</c:calendar-multiget>';
 
@@ -238,7 +268,13 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
     )
   ));
 
-  $xmlData = file_get_contents($url,false,$context);
+  $xmlData = false;
+
+  if (isHostOnline($url)) {
+    $xmlData = file_get_contents($url,false,$context);
+  }
+
+  if (!$xmlData) { return false; }
 
   return xmlDataToEvents($xmlData);
 }
@@ -359,18 +395,24 @@ function getEventsByDates($url, $dateStart=false, $dateEnd=false, $auth=false, $
     )
   ));
 
-  $xmlData = file_get_contents($calUrl,false,$context);
+  $xmlData = false;
+  if (isHostOnline($calUrl)) {
+    $xmlData = file_get_contents($calUrl,false,$context);
+  }
+
+  if (!$xmlData) { return false; }
   return xmlDataToEvents($xmlData, $dateStart, $dateEnd);
 }
 
 if ($ctagWriteFile) {
   $result = false;
   $ctagw = getCalendarCtag($calendarUrl, $auth, $username, $password);
+
   if ($ctagw) {
     $result = file_put_contents($ctagWriteFile, $ctagw);
   }
 
-  if (!$result) {
+  if (!$result && $ctagw) {
     echo 'Could not write ctag to ' . $ctagWriteFile . PHP_EOL;
   }
 }
@@ -378,10 +420,12 @@ if ($ctagWriteFile) {
 $events = array();
 
 if ($ctag) {
-  $events = getEventsByCtag($calendarUrl, $ctag, $auth, $username, $password);
+  $eventResults = getEventsByCtag($calendarUrl, $ctag, $auth, $username, $password);
+  if ($eventResults) { $events = $eventResults; }
 }
 if (!$ctag) {
-  $events = getEventsByDates($calendarUrl, $start, $end, $auth, $username, $password);
+  $eventResults = getEventsByDates($calendarUrl, $start, $end, $auth, $username, $password);
+  if ($eventResults) { $events = $eventResults; }
 }
 
 foreach ($events as $event) {
