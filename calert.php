@@ -223,7 +223,7 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
     $xml=simplexml_load_string($xmlData);
   }
 
-  if (!$xml) { return false; }
+  if ($xml===false) { return false; }
 
   $urls = array();
 
