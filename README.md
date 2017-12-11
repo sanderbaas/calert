@@ -10,8 +10,8 @@ be used to send reminders by email for example. There are several options:
 ## Example use in crontab
 
     # m h  dom mon dow   command
-      0 20  *   *   0    /usr/bin/php /home/user/calert3/calert3.php --config=/home/user/calert3.conf --week | mail -E -r noreply@test.com -s "Calendar week report" you@test.com
-      * *   *   *   *    /usr/bin/php /home/user/calert3/calert3.php --config=/home/user/calert3.conf --ctag | mail -E -r noreply@test.com -s "New calendar item" you@test.com
+      0 20  *   *   0    /usr/bin/php /home/user/calert/calert.php --config=/home/user/calert.conf --week | mail -E -r noreply@test.com -s "Calendar week report" you@test.com
+      * *   *   *   *    /usr/bin/php /home/user/calert/calert.php --config=/home/user/calert.conf --ctag | mail -E -r noreply@test.com -s "New calendar item" you@test.com
 
 ## Example config file
 
