@@ -4,7 +4,7 @@ use Sabre\VObject;
 include 'vendor/autoload.php';
 
 $shortopts = 'c::';
-$longopts = array('config::','user::','pass::','url::','auth::','week','day','start::','end::','ctag::','locale::','ctag-file::','ctag-write-file::','ctag-read-file::');
+$longopts = array('config::','user::','pass::','url::','auth::','week','day','start::','end::','ctag::','locale::','timezone::','ctag-file::','ctag-write-file::','ctag-read-file::');
 
 $opts = getopt($shortopts, $longopts);
 
@@ -16,7 +16,8 @@ $password = false;
 $auth = false;
 $start = false;
 $end = false;
-$locale = false;
+$locale = null;
+$timezone = null;
 $ctag = false;
 $ctagWriteFile = false;
 $ctagReadFile = false;
@@ -36,6 +37,7 @@ if (!empty($opts['config']) && is_readable($opts['config'])) {
     $ctagWriteFile = $config['ctag_file'];
   }
   if ($config && !empty($config['locale'])) { $locale = $config['locale']; }
+  if ($config && !empty($config['timezone'])) { $timezone = $config['timezone']; }
 }
 
 if (!empty($opts['ctag-file'])) {
@@ -50,6 +52,7 @@ if (!empty($opts['auth']) && in_array($opts['auth'], $allowedAuthMethods)) {
   $auth = $opts['auth'];
 }
 if (!empty($opts['locale'])) { $locale = $opts['locale']; }
+if (!empty($opts['timezone'])) { $timezone = $opts['timezone']; }
 
 if ($auth == false && $username !== false && $password !== false) {
   $auth = 'basic';
@@ -123,8 +126,6 @@ if (!$start && !$end && !$ctag && !$ctagReadFile && !$ctagWriteFile) {
   $message .= '- a ctag-write-file (--ctag-write-file=filename)' . PHP_EOL;
   die($message);
 }
-
-if ($locale) { setlocale(LC_TIME, $locale); }
 
 // either config or user, pass and url should be passed
 // either ctag or week or day or start and end shoud be passed
@@ -321,12 +322,12 @@ function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
 
     $dtStart = $event->DTSTART->getDateTime();
     $startDate = new DateTime($dtStart->format('Y-m-d H:i:s'),$dtStart->getTimezone());
-    $startDate->setTimezone(new DateTimeZone('Europe/Amsterdam'));
+    if (!empty($timezone)) { $startDate->setTimezone(new DateTimeZone($timezone)); }
     $start = $startDate->format('Y-m-d H:i:s');
 
     if ($dtEnd) {
       $endDate = new DateTime($dtEnd->format('Y-m-d H:i:s'),$dtEnd->getTimezone());
-      $endDate->setTimezone(new DateTimeZone('Europe/Amsterdam'));
+      if (!empty($timezone)) { $endDate->setTimezone(new DateTimeZone($timezone)); }
       $end = $endDate->format('Y-m-d H:i:s');
     }
 
@@ -428,11 +429,15 @@ if (!$ctag) {
   if ($eventResults) { $events = $eventResults; }
 }
 
+$fmt = new IntlDateFormatter($locale, null, null, $timezone, null);
+
 foreach ($events as $event) {
   if ($event['sameDay']) {
-    $dates = strftime('%A %x', $event['startDate']->getTimestamp()) . PHP_EOL;
-    $startTime = strftime('%X', $event['startDate']->getTimestamp());
-    $endTime = strftime('%X', $event['endDate']->getTimestamp());
+    $fmt->setPattern('EEEE d MMMM YYYY');
+    $dates = $fmt->format($event['startDate']->gettimestamp()) . PHP_EOL;
+    $fmt->setPattern('HH:mm');
+    $startTime = $fmt->format($event['startDate']->getTimestamp());
+    $endTime = $fmt->format($event['endDate']->getTimestamp());
 
     if ($startTime == $endTime) {
       $dates .= $startTime;
@@ -444,8 +449,9 @@ foreach ($events as $event) {
   }
 
   if (!$event['sameDay']) {
-    $start = strftime('%A %x %X', $event['startDate']->getTimestamp());
-    $end = strftime('%A %x %X', $event['endDate']->getTimestamp());
+    $fmt->setPattern('EEEE d MMMM YYYY HH:mm');
+    $start = $fmt->format($event['startDate']->getTimestamp());
+    $end = $fmt->format($event['endDate']->getTimestamp());
     $dates = $start . ' - ' .$end;
   }
   echo $dates . PHP_EOL . $event['summary'] . PHP_EOL . PHP_EOL;
