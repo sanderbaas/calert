@@ -4,7 +4,7 @@ use Sabre\VObject;
 include 'vendor/autoload.php';
 
 $shortopts = 'c::';
-$longopts = array('config::','user::','pass::','url::','auth::','week','day','start::','end::','ctag::','locale::','timezone::','ctag-file::','ctag-write-file::','ctag-read-file::');
+$longopts = array('config::','user::','pass::','url::','auth::','week','day','tomorrow','start::','end::','ctag::','locale::','timezone::','ctag-file::','ctag-write-file::','ctag-read-file::');
 
 $opts = getopt($shortopts, $longopts);
 
@@ -71,6 +71,13 @@ if (isset($opts['day'])) {
   $start = new DateTime('now');
   $start->modify('midnight');
   $end = new DateTime('now');
+  $end->modify('+1 day midnight');
+}
+
+if (isset($opts['tomorrow'])) {
+  $start = new DateTime('tomorrow');
+  $start->modify('midnight');
+  $end = new DateTime('tomorrow');
   $end->modify('+1 day midnight');
 }
 
