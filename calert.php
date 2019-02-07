@@ -328,6 +328,14 @@ function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
     $duration = !empty($event->DURATION) ? $event->DURATION : false;
 
     $dtStart = $event->DTSTART->getDateTime();
+    $dtSame = false;
+    if ($dtEnd) {
+        $diff = (int)$dtStart->diff($dtEnd)->format('%r%a');
+	$startTime = $dtStart->format('H:i:s');
+        $endTime = $dtEnd->format('H:i:s');
+        $dtSame = $diff==1 && $startTime==$endTime;
+    }
+
     $startDate = new DateTime($dtStart->format('Y-m-d H:i:s'),$dtStart->getTimezone());
     if (!empty($timezone)) { $startDate->setTimezone(new DateTimeZone($timezone)); }
     $start = $startDate->format('Y-m-d H:i:s');
@@ -346,8 +354,8 @@ function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
     }
 
     $diff = $startDate->diff($endDate);
-    $sameDay = (int)$diff->format('%r%a') == 0;
-    $wholeDay = false;
+    $sameDay = $dtSame || ((int)$diff->format('%r%a') == 0);
+    $wholeDay = $dtSame;
 
     $results[] = array(
       'start' => $start,
@@ -355,6 +363,7 @@ function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
       'end' => $end,
       'endDate' => $endDate,
       'sameDay' => $sameDay,
+      'wholeDay' => $wholeDay,
       'summary' => (string)$summary
     );
   }
@@ -441,17 +450,17 @@ $fmt = new IntlDateFormatter($locale, null, null, $timezone, null);
 foreach ($events as $event) {
   if ($event['sameDay']) {
     $fmt->setPattern('EEEE d MMMM YYYY');
-    $dates = $fmt->format($event['startDate']->gettimestamp()) . PHP_EOL;
+    $dates = $fmt->format($event['startDate']->gettimestamp());
     $fmt->setPattern('HH:mm');
     $startTime = $fmt->format($event['startDate']->getTimestamp());
     $endTime = $fmt->format($event['endDate']->getTimestamp());
 
-    if ($startTime == $endTime) {
-      $dates .= $startTime;
+    if (!$event['wholeDay'] && ($startTime == $endTime)) {
+      $dates .= PHP_EOL . $startTime;
     }
 
     if ($startTime !== $endTime) {
-      $dates .= $startTime . ' - ' . $endTime;
+      $dates .= PHP_EOL . $startTime . ' - ' . $endTime;
     }
   }
 
