@@ -136,7 +136,6 @@ if (!$start && !$end && !$ctag && !$ctagReadFile && !$ctagWriteFile) {
 
 // either config or user, pass and url should be passed
 // either ctag or week or day or start and end shoud be passed
-
 function getCalendarCtag($url, $auth=false, $username=false, $password=false){
   $headers = array();
 
@@ -151,7 +150,7 @@ function getCalendarCtag($url, $auth=false, $username=false, $password=false){
     'http' => array(
         'method' => 'PROPFIND',
         'header' => implode("\r\n", $headers) . "\r\n",
-        'content' => '<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:displayname /><cs:getctag /></d:prop></d:propfind>'
+        'content' => '<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:displayname /><d:sync-token /><cs:getctag /></d:prop></d:propfind>'
     )
   ));
 
@@ -165,12 +164,19 @@ function getCalendarCtag($url, $auth=false, $username=false, $password=false){
     $xml=simplexml_load_string($xmlData);
   }
 
+  $doc = $xml;
+
   if ($xml!==false && $xml->children('d',true)) {
     $doc = $xml->children('d',true);
   }
 
   if ($doc && $doc->response && $doc->response->propstat && $doc->response->propstat->prop && $doc->response->propstat->prop->children('cs',true)) {
     $cs = $doc->response->propstat->prop->children('cs',true);
+  }
+
+  if ($doc && $doc->response && $doc->response->propstat && $doc->response->propstat->prop && $doc->response->propstat->prop->{'sync-token'}) {
+    $cs = $doc->response->propstat->prop->{'sync-token'};
+    if ($cs) { $ctag=$cs[0]; }
   }
 
   if ($cs!==false && $cs->getctag) {
@@ -181,6 +187,7 @@ function getCalendarCtag($url, $auth=false, $username=false, $password=false){
 }
 
 function isHostOnline($location) {
+return true;
   $port = 80;
   if (substr($location,0,8)=='https://') { $port = 443; }
 
@@ -197,7 +204,7 @@ function isHostOnline($location) {
   return true;
 }
 
-function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=false) {
+function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=false, $ctagWriteFile=false) {
   $report_data = '<?xml version="1.0" encoding="utf-8" ?>' .
   '<d:sync-collection xmlns:d="DAV:">' .
   '<d:sync-token>'. $ctag .'</d:sync-token>' .
@@ -229,6 +236,7 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
   if (isHostOnline($url)) {
     $xmlData = file_get_contents($url,false,$context);
     $xml=simplexml_load_string($xmlData);
+    $doc=$xml;
   }
 
   if ($xml===false) { return false; }
@@ -242,6 +250,19 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
   if ($doc!==false && $doc->response) {
     foreach ($doc->response as $response) {
       if (empty($response->status)) { $urls[] = $response->href; }
+    }
+  }
+
+  if ($ctagWriteFile && $doc->{'sync-token'}) {
+    $result = false;
+    $ctagw = $doc->{'sync-token'};
+
+    if ($ctagw) {
+      $result = file_put_contents($ctagWriteFile, $ctagw);
+    }
+
+    if (!$result && $ctagw) {
+      echo 'Could not write ctag to ' . $ctagWriteFile . PHP_EOL;
     }
   }
 
@@ -289,7 +310,7 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
 
 function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
   $xml=simplexml_load_string($xmlData);
-  $doc = false;
+  $doc = $xml;
 
   $vevents = array();
   $calendar = new VObject\Component\VCalendar();
@@ -302,6 +323,7 @@ function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
     foreach ($doc->response as $response) {
       $responses[] = $response;
       $cal = $response->propstat->prop->children('cal',true);
+      if (!$cal) { $cal = $response->propstat->prop->children('C',true); }
       $calData = (string)$cal->{'calendar-data'};
       $calendarPart = VObject\Reader::read($calData);
       $calendar->add($calendarPart->VEVENT);
@@ -429,6 +451,10 @@ if ($ctagWriteFile) {
     $result = file_put_contents($ctagWriteFile, $ctagw);
   }
 
+  if ($ctagw && $ctag===true) {
+    $ctag = $ctagw;
+  }
+
   if (!$result && $ctagw) {
     echo 'Could not write ctag to ' . $ctagWriteFile . PHP_EOL;
   }
@@ -437,7 +463,7 @@ if ($ctagWriteFile) {
 $events = array();
 
 if ($ctag) {
-  $eventResults = getEventsByCtag($calendarUrl, $ctag, $auth, $username, $password);
+  $eventResults = getEventsByCtag($calendarUrl, $ctag, $auth, $username, $password, $ctagWriteFile);
   if ($eventResults) { $events = $eventResults; }
 }
 if (!$ctag) {
