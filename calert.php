@@ -304,8 +304,19 @@ function getEventsByCtag($url, $ctag, $auth=false, $username=false, $password=fa
   }
 
   if (!$xmlData) { return false; }
-
+  $xmlData = onlyLastVevent($xmlData);
   return xmlDataToEvents($xmlData);
+}
+
+function onlyLastVevent($xmlData) {
+  $parts = explode('BEGIN:VEVENT',$xmlData);
+  if (sizeof($parts)==1) { return $xmlData; }
+  $xml = $parts[0];
+  $xml .= "BEGIN:VEVENT";
+  $chunk = str_replace('END:VCALENDAR','',array_pop($parts));
+  $chunk = str_replace('END:VEVENT',"END:VEVENT" .PHP_EOL. "END:VCALENDAR",$chunk);
+  $xml .= $chunk;
+  return $xml;
 }
 
 function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
@@ -461,7 +472,6 @@ if ($ctagWriteFile) {
 }
 
 $events = array();
-
 if ($ctag) {
   $eventResults = getEventsByCtag($calendarUrl, $ctag, $auth, $username, $password, $ctagWriteFile);
   if ($eventResults) { $events = $eventResults; }
