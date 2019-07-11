@@ -354,13 +354,18 @@ function xmlDataToEvents($xmlData, $dateStart=false, $dateEnd=false) {
   }
 
   $results = array();
-
   foreach ($events as $event){
     $summary = $event->SUMMARY;
     $dtEnd = !empty($event->DTEND) ? $event->DTEND->getDateTime() : false;
     $duration = !empty($event->DURATION) ? $event->DURATION : false;
 
     $dtStart = $event->DTSTART->getDateTime();
+    if ($duration) {
+        $dtInterval = new DateInterval($duration);
+        $dtEnd = $dtStart;
+        $dtEnd = $dtEnd->add($dtInterval);
+    }
+
     $dtSame = false;
     if ($dtEnd) {
         $diff = (int)$dtStart->diff($dtEnd)->format('%r%a');
